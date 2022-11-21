@@ -1,10 +1,11 @@
-use std::fmt::{Debug, Error, Formatter, Write};
-
 use rand::{thread_rng, Rng};
+use serde::{Deserialize, Serialize};
+use std::fmt::{Debug, Error, Formatter};
 
 pub const ID_SIZE: usize = 20;
 
 /// Node identification
+#[derive(PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct Id([u8; ID_SIZE]);
 
 impl Id {
@@ -18,7 +19,7 @@ impl Id {
         Id(thread_rng().gen::<[u8; ID_SIZE]>())
     }
 
-    /// Find the XOR distance between two [`Id`]
+    /// Find the XOR distance between two [`Id`]s via the number of prefix zero bits
     pub fn distance(&self, x: &Self) -> usize {
         Id(self
             .0
@@ -31,16 +32,17 @@ impl Id {
         .leading_zeros()
     }
 
-    /// Find the number of profix
+    /// Number of prefix zero bits between two [`Id`]s
     pub fn leading_zeros(&self) -> usize {
         for i in 0..20 {
             for j in (0..8).rev() {
-                if (self.0[i] >> j) & 0x1 != 0 {
+                if (self.0[i] >> j) & 0x01 != 0 {
                     return i * 8 + (7 - j);
                 }
             }
         }
-        return ID_SIZE * 8;
+
+        ID_SIZE * 8
     }
 }
 
@@ -55,7 +57,7 @@ impl Debug for Id {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     // TODO: Reflexivity, symmetry, transitivity properties

@@ -1,0 +1,1 @@
+// Write a fancy cli for both nodes
