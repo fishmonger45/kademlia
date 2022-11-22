@@ -1,8 +1,19 @@
 use std::sync::Arc;
 
-use crate::{bucket::NodeInfo, id::Id};
+use crate::{
+    bucket::{NodeInfo, RoutingTable},
+    id::Id,
+    node::{Node, Store},
+};
 use serde::{Deserialize, Serialize};
-use tokio::{net::UdpSocket, sync::mpsc::Sender};
+use tokio::{
+    net::UdpSocket,
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        Mutex,
+    },
+    task::JoinHandle,
+};
 
 /// Request message types
 #[derive(Serialize, Deserialize, Debug)]
@@ -19,16 +30,16 @@ pub enum ResponsePayload {
 /// Wraps request with sender details
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RequestHandle {
-    pub source: Id,
+    pub source: NodeInfo,
     pub request: RequestPayload,
 }
 
 /// Wraps responses with the response to a request and reciever details
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ResponseHandle {
-    destination: Id,
-    request: RequestPayload,
-    response: ResponsePayload,
+    pub receiver: NodeInfo,
+    pub request: RequestPayload,
+    pub response: ResponsePayload,
 }
 
 /// A message that is sent between nodes
@@ -44,47 +55,39 @@ pub struct Rpc {
 }
 
 impl Rpc {
-    // TODO: For now we are not handling messages that are received
-    // async fn new(socket: UdpSocket, tx: Sender<Message>) {
-
     // Create a new [`Rpc`] handler
-    pub fn new(socket: UdpSocket) -> Self {
-        Self {
-            socket: Arc::new(socket),
-        }
+    pub fn new(socket: Arc<UdpSocket>) -> Self {
+        Self { socket }
     }
-    /// Listen for messages and send them to a request handler
-    pub async fn receive(&self) {
+    /// Listen for messages and send them to a handler
+    pub fn receive(&self, tx: Sender<Message>) -> JoinHandle<()> {
         let socket = Arc::clone(&self.socket);
-        println!("spawning receive future");
-        tokio::spawn(async move {
-            let mut buffer = [0u8; 2 << 12];
+        let receive_handle = tokio::spawn(async move {
+            let mut buffer = [0u8; 508];
             loop {
                 let (x, _) = socket
                     .recv_from(&mut buffer)
                     .await
-                    .expect("failed to recieve message");
+                    .expect("failed to receive message");
 
-                println!("received {x} bytes");
-
-                let message = serde_json::from_slice::<Message>(&buffer)
+                let message = serde_json::from_slice::<Message>(&buffer[..x])
                     .expect("failed to deserialize message");
 
-                println!("recieved {:?}", message);
+                tx.send(message)
+                    .await
+                    .expect("failed to send received message to handler");
             }
         });
+
+        receive_handle
     }
 
-    /// Send a message to another node
+    /// Send a message to a node
     pub async fn send(&self, message: &Message, node_info: &NodeInfo) {
         let buffer = serde_json::to_vec(message).expect("failed to serialize message");
-        println!("sending message of size {:?}", buffer.len());
-
         self.socket
             .send_to(&buffer, &node_info.address)
             .await
             .expect("failed to send message");
-
-        println!("sent {:?}", message);
     }
 }
