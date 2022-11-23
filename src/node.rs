@@ -10,8 +10,8 @@ use tokio::{
 };
 
 use crate::{
-    bucket::{NodeInfo, RoutingTable},
     id::Id,
+    routing::{NodeInfo, RoutingTable},
     rpc::{Message, RequestHandle, RequestPayload, ResponseHandle, ResponsePayload, Rpc},
 };
 
@@ -28,15 +28,16 @@ pub struct Node {
 impl Node {
     /// Create a new node with a random [`Id`] and an empty [`RoutingTable`], start the [`Rpc`]
     pub async fn new(address: String) -> Self {
-        let socket = tokio::net::UdpSocket::bind(&address).await.unwrap();
-        let store = Arc::new(Mutex::new(Store::new()));
-        let router = Arc::new(Mutex::new(RoutingTable::new()));
-        let rpc = Arc::new(Rpc::new(Arc::new(socket)));
         let id = Id::random();
+
         let node_info = Arc::new(NodeInfo {
             id: id,
-            address: address,
+            address: address.clone(),
         });
+        let socket = tokio::net::UdpSocket::bind(&address).await.unwrap();
+        let store = Arc::new(Mutex::new(Store::new()));
+        let router = Arc::new(Mutex::new(RoutingTable::new(Arc::clone(&node_info))));
+        let rpc = Arc::new(Rpc::new(Arc::new(socket)));
 
         Self {
             node_info,
@@ -73,7 +74,7 @@ impl Node {
                                 let destination = source;
 
                                 let response = Message::Response(ResponseHandle {
-                                    receiver: destination.clone(),
+                                    receiver: local_node_info.as_ref().clone(),
                                     request: RequestPayload::Ping,
                                     response: ResponsePayload::Pong,
                                 });

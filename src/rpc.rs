@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    bucket::{NodeInfo, RoutingTable},
+    routing::{NodeInfo, RoutingTable},
     id::Id,
     node::{Node, Store},
 };
@@ -90,4 +90,9 @@ impl Rpc {
             .await
             .expect("failed to send message");
     }
+}
+
+
+mod test {
+
 }

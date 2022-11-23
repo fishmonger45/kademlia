@@ -1,15 +1,13 @@
 #![warn(rust_2018_idioms)]
 
-mod bucket;
 mod cli;
 mod id;
-mod lru;
+mod kbucket;
 mod node;
+mod routing;
 mod rpc;
+mod storage;
 
-use std::net::{SocketAddr, ToSocketAddrs};
-
-use bucket::NodeInfo;
 use node::Node;
 use rpc::{Message, RequestHandle};
 
@@ -29,6 +27,8 @@ async fn main() {
     });
 
     n1.rpc.send(&m1, &n2.node_info).await;
+    rh1.await;
+    ph1.await;
     rh2.await;
     ph2.await;
 }
