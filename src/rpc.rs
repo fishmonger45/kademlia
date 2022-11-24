@@ -28,8 +28,8 @@ pub struct RequestHandle {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ResponseHandle {
     pub id: Id,
-    pub receiver: NodeInfo,
-    pub request: RequestPayload,
+    pub source: NodeInfo,
+    pub request_id: Id,
     pub response: ResponsePayload,
 }
 
@@ -75,6 +75,7 @@ impl Rpc {
 
     /// Send a message to a node
     pub async fn send(&self, message: &Message, node_info: &NodeInfo) {
+        println!("sending message");
         let buffer = serde_json::to_vec(message).expect("failed to serialize message");
         self.socket
             .send_to(&buffer, &node_info.address)

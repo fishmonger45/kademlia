@@ -20,12 +20,12 @@ pub struct NodeInfo {
 #[derive(Debug)]
 pub struct RoutingTable {
     kbuckets: Vec<KBucket>,
-    node_info: Arc<NodeInfo>,
+    node_info: NodeInfo,
 }
 
 impl RoutingTable {
     /// Create a new RoutingTable with a single KBucket
-    pub fn new(node_info: Arc<NodeInfo>) -> Self {
+    pub fn new(node_info: NodeInfo) -> Self {
         Self {
             kbuckets: vec![KBucket::new()],
             node_info,
@@ -123,10 +123,10 @@ mod test {
 
     #[test]
     fn index() {
-        let mut rt = RoutingTable::new(Arc::new(NodeInfo {
+        let mut rt = RoutingTable::new(NodeInfo {
             id: Id::new([1u8; 20]),
             address: "localhost:8080".to_string(),
-        }));
+        });
 
         let n1 = NodeInfo {
             id: Id::new([3u8; 20]),

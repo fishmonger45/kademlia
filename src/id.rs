@@ -5,7 +5,7 @@ use std::fmt::{Debug, Error, Formatter, Write};
 pub const ID_SIZE: usize = 20;
 
 /// Node identification
-#[derive(PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Hash)]
 pub struct Id([u8; ID_SIZE]);
 
 impl Id {

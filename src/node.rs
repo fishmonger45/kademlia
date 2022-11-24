@@ -2,11 +2,11 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use tokio::{
     sync::{
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, channel, Receiver, Sender},
         Mutex,
     },
     task::JoinHandle,
-    time,
+    time::{self},
 };
 
 use crate::{
@@ -16,12 +16,14 @@ use crate::{
     storage::Store,
 };
 
+#[derive(Clone)]
 pub struct Node {
-    pub node_info: Arc<NodeInfo>,
+    pub node_info: NodeInfo,
     pub router: Arc<Mutex<RoutingTable>>,
     pub store: Arc<Mutex<Store<String, String>>>,
     /// Requests pending responses
-    pub pending: Arc<Mutex<HashMap<Id, Sender<ResponseHandle>>>>,
+    // XXX: Does this just need the payload or is the handle itself required?
+    pub pending: Arc<Mutex<HashMap<Id, Sender<ResponsePayload>>>>,
     pub rpc: Arc<Rpc>,
 }
 
@@ -30,13 +32,13 @@ impl Node {
     pub async fn new(address: String) -> Self {
         let id = Id::random();
 
-        let node_info = Arc::new(NodeInfo {
+        let node_info = NodeInfo {
             id: id,
             address: address.clone(),
-        });
+        };
         let socket = tokio::net::UdpSocket::bind(&address).await.unwrap();
         let store = Arc::new(Mutex::new(Store::new()));
-        let router = Arc::new(Mutex::new(RoutingTable::new(Arc::clone(&node_info))));
+        let router = Arc::new(Mutex::new(RoutingTable::new(node_info.clone())));
         let rpc = Arc::new(Rpc::new(Arc::new(socket)));
         let pending = Arc::new(Mutex::new(HashMap::new()));
 
@@ -60,14 +62,20 @@ impl Node {
 
     /// Process incoming messages
     fn process(&self, mut rx: Receiver<Message>) -> JoinHandle<()> {
-        let router = Arc::clone(&self.router);
-        let store = Arc::clone(&self.store);
-        let rpc = Arc::clone(&self.rpc);
-        let local_node_info = Arc::clone(&self.node_info);
-
+        // This might panic as its a mutable reference while main thread is doing shit
+        let mut node = self.clone();
         let process_handle = tokio::spawn(async move {
             loop {
-                for message in rx.recv().await {}
+                for message in rx.recv().await {
+                    match message {
+                        Message::Request(request_handle) => {
+                            node.process_request(request_handle).await
+                        }
+                        Message::Response(response_handle) => {
+                            node.process_response(response_handle).await
+                        }
+                    }
+                }
             }
         });
 
@@ -80,77 +88,75 @@ impl Node {
         let remover_handle = tokio::spawn(async move {
             let mut interval = time::interval(Duration::from_secs(60 * 60));
             loop {
-                let mut store = store.lock().await;
-                store.remove_stale();
-                drop(store);
+                {
+                    let mut store = store.lock().await;
+                    store.remove_stale();
+                }
                 interval.tick().await;
             }
         });
 
         remover_handle
     }
-    // Send a request and get a response
-    // fn request() -> response {
 
-    // }
+    /// Handle a request, send a response
+    async fn process_request(&mut self, message: RequestHandle) {
+        println!("processing request");
+        match message.request {
+            RequestPayload::Ping => {
+                {
+                    let mut router = self.router.lock().await;
+                    router.upsert(message.source.clone());
+                }
+                let response = Message::Response(ResponseHandle {
+                    id: Id::random(),
+                    source: message.source.clone(),
+                    request_id: message.id,
+                    response: ResponsePayload::Pong,
+                });
 
-    /// Handle a request
-    fn process_request(message: RequestHandle) {
-        // match message.request {
-        //     RequestPayload::Ping => {
-        //         let destination = source;
-
-        //         let response = Message::Response(ResponseHandle {
-        //             receiver: local_node_info.as_ref().clone(),
-        //             request: RequestPayload::Ping,
-        //             response: ResponsePayload::Pong,
-        //         });
-
-        //         println!(
-        //             "{:?} received ping from {:?}",
-        //             local_node_info.id, source.id
-        //         );
-
-        //         rpc.send(&response, &destination).await;
-
-        //         println!("{:?} sent pong to {:?}", local_node_info.id, source.id)
-        //     }
-        // }
+                self.rpc.send(&response, &message.source).await;
+            }
+        }
     }
 
     /// Handle a reponse
-    fn process_response(message: ResponseHandle) {
-        // Lookup in the pending requests, notify requestee
-        unimplemented!()
+    // Lookup in the pending requests, notify requestee
+    async fn process_response(&mut self, message: ResponseHandle) {
+        let mut pending = self.pending.lock().await;
+        {
+            let mut router = self.router.lock().await;
+            router.upsert(message.source);
+        }
+
+        match pending.remove(&message.request_id) {
+            Some(tx) => {
+                println!("sending response back to send fn {:?}", message.id);
+                tx.send(message.response).await.unwrap();
+            }
+            None => {
+                eprintln!("Received response for request that has not been tracked")
+            }
+        }
     }
 
     /// Send a request and wait and return a response.
-    fn send(request: RequestPayload) -> Option<ResponseHandle> {
-        unimplemented!()
+    pub async fn send(&mut self, request: RequestPayload) -> Option<ResponsePayload> {
+        let request_id = Id::random();
+        let message = Message::Request(RequestHandle {
+            id: request_id.clone(),
+            source: self.node_info.to_owned(),
+            request: request,
+        });
+        // TODO: Change this to a oneshot channel
+        let (tx, mut rx) = channel(50);
+        {
+            let mut pending = self.pending.lock().await;
+            pending.insert(request_id, tx);
+        }
+        self.rpc.send(&message, &self.node_info.clone()).await;
+
+        let val = rx.recv().await;
+        val
     }
-
-    // match message {
-    //     Message::Request(RequestHandle {
-    //         request,
-    //         ref source,
-    //     }) => match request {},
-    //     Message::Response(ResponseHandle {
-    //         receiver,
-    //         request,
-    //         response,
-    //     }) => {
-    //         println!(
-    //             "{:?} received pong from {:?}",
-    //             local_node_info.id, receiver.id
-    //         );
-
-    //         let request = Message::Request(RequestHandle {
-    //             source: local_node_info.as_ref().clone(),
-    //             request: RequestPayload::Ping,
-    //         });
-
-    //         rpc.send(&request, &receiver).await;
-    //         println!("{:?} sent ping to {:?}", local_node_info.id, receiver.id)
-    //     }
-    // }
 }
