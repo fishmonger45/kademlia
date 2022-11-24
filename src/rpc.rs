@@ -1,19 +1,8 @@
 use std::sync::Arc;
 
-use crate::{
-    routing::{NodeInfo, RoutingTable},
-    id::Id,
-    node::{Node, Store},
-};
+use crate::{id::Id, routing::NodeInfo};
 use serde::{Deserialize, Serialize};
-use tokio::{
-    net::UdpSocket,
-    sync::{
-        mpsc::{self, Receiver, Sender},
-        Mutex,
-    },
-    task::JoinHandle,
-};
+use tokio::{net::UdpSocket, sync::mpsc::Sender, task::JoinHandle};
 
 /// Request message types
 #[derive(Serialize, Deserialize, Debug)]
@@ -30,6 +19,7 @@ pub enum ResponsePayload {
 /// Wraps request with sender details
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RequestHandle {
+    pub id: Id,
     pub source: NodeInfo,
     pub request: RequestPayload,
 }
@@ -37,6 +27,7 @@ pub struct RequestHandle {
 /// Wraps responses with the response to a request and reciever details
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ResponseHandle {
+    pub id: Id,
     pub receiver: NodeInfo,
     pub request: RequestPayload,
     pub response: ResponsePayload,
@@ -92,7 +83,4 @@ impl Rpc {
     }
 }
 
-
-mod test {
-
-}
+mod test {}

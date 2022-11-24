@@ -69,7 +69,7 @@ impl Debug for Id {
 mod test {
     use super::*;
 
-    // Reflexivity, Symmetry, Transitivity
+    // Reflexivity, symmetry, transitivity
     #[test]
     fn distance() {
         let x = Id::new([1u8; 20]);

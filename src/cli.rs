@@ -1,1 +1,2 @@
-// Write a fancy cli for both nodes
+/// Start the main CLI event loop
+fn start() {}

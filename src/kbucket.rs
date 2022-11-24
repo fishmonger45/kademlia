@@ -67,7 +67,7 @@ mod tests {
         };
         let y = NodeInfo {
             id: Id::random(),
-            address: "localhost:8080".to_string(),
+            address: "localhost:8081".to_string(),
         };
         kb.upsert(x.clone());
         assert_eq!(kb.0.len(), 1);

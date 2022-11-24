@@ -1,6 +1,7 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     hash::Hash,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -14,7 +15,8 @@ pub struct Store<K, V> {
 
 impl<K, V> Store<K, V>
 where
-    K: Hash + PartialEq + Eq + Ord + Copy,
+    K: Hash + PartialEq + Eq + Ord + Clone + Send + Sync,
+    V: Clone + Send + Sync,
 {
     /// Create an empty store
     pub fn new() -> Self {
@@ -26,8 +28,12 @@ where
 
     /// Upsert a value to the store
     pub fn upsert(&mut self, k: K, v: V) {
-        self.store.insert(k, v);
+        self.store.insert(k.clone(), v);
         self.times.insert(k, Instant::now());
+    }
+
+    pub fn get(&self, k: &K) -> Option<V> {
+        self.store.get(&k).map(|v| v.clone())
     }
 
     /// Remove all stale entries from the store
@@ -37,13 +43,17 @@ where
 
         for (k, t) in self.times.iter() {
             if now.duration_since(*t) >= STALE_DURATION {
-                self.store.remove(k).expect("");
-                keys.push(k);
+                keys.push(k.clone());
             }
         }
 
         for k in keys {
-            self.store.remove(k);
+            self.times
+                .remove(&k)
+                .expect("failed to remove stale key from times");
+            self.store
+                .remove(&k)
+                .expect("failed to remove stale key from store");
         }
     }
 }
@@ -56,5 +66,7 @@ mod test {
     fn upsert() {
         let mut store = Store::<usize, usize>::new();
         store.upsert(0, 0);
+        assert_eq!(store.get(&0), Some(0));
+        // store.upsert(0, 0);
     }
 }

@@ -82,6 +82,7 @@ impl RoutingTable {
             for i in (index + 1)..self.kbuckets.len() {
                 closest.extend_from_slice(self.kbuckets[i].0.clone().make_contiguous());
             }
+            index += 1
         }
 
         // TODO: Clamp size
