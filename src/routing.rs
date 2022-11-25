@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, net::SocketAddr, ops::Index, sync::Arc};
+use std::{cmp, collections::VecDeque, net::SocketAddr, ops::Index, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -28,13 +28,13 @@ impl RoutingTable {
     pub fn new(node_info: NodeInfo) -> Self {
         Self {
             kbuckets: vec![KBucket::new()],
-            node_info,
+            node_info: node_info,
         }
     }
 
-    /// Upsert a node into the `RoutingTable`, splitting the [`KBucket`] as nessesary
+    /// Upsert a node into the `RoutingTable`, splitting [`KBucket`] as nessesary
     pub fn upsert(&mut self, node_info: NodeInfo) -> bool {
-        let mut index = std::cmp::min(
+        let mut index = cmp::min(
             self.node_info.id.distance(&node_info.id),
             self.kbuckets.len() - 1,
         );
@@ -60,7 +60,7 @@ impl RoutingTable {
                 let new = self.kbuckets[index].split(&self.node_info.id, index);
                 self.kbuckets.push(new);
 
-                index = std::cmp::min(
+                index = cmp::min(
                     self.node_info.id.distance(&node_info.id),
                     self.kbuckets.len() - 1,
                 );
@@ -70,7 +70,7 @@ impl RoutingTable {
 
     /// Get the `n` closest nodes to [`Id`]
     pub fn closest(&self, id: &Id, n: usize) -> Vec<NodeInfo> {
-        let mut index = std::cmp::min(
+        let mut index = cmp::min(
             self.node_info.id.distance(&self.node_info.id),
             self.kbuckets.len() - 1,
         );
@@ -80,13 +80,13 @@ impl RoutingTable {
 
         while index < self.kbuckets.len() && closest.len() < n {
             for i in (index + 1)..self.kbuckets.len() {
-                closest.extend_from_slice(self.kbuckets[i].0.clone().make_contiguous());
+                let required = std::cmp::min(self.kbuckets[i].size(), n - closest.len());
+                closest
+                    .extend_from_slice(&self.kbuckets[i].0.clone().make_contiguous()[..required]);
             }
             index += 1
         }
 
-        // TODO: Clamp size
-        // sort
         closest.sort_by_key(|node_info| node_info.id.distance(id));
 
         closest
@@ -111,7 +111,7 @@ impl RoutingTable {
 impl Index<Id> for RoutingTable {
     type Output = KBucket;
     fn index(&self, id: Id) -> &Self::Output {
-        let idx = std::cmp::min(self.node_info.id.distance(&id), self.kbuckets.len() - 1);
+        let idx = cmp::min(self.node_info.id.distance(&id), self.kbuckets.len() - 1);
 
         return &self.kbuckets[idx];
     }

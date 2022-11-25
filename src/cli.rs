@@ -4,10 +4,10 @@ use tokio::sync::Mutex;
 
 use crate::{id::Id, node::Node};
 
-// Tracked runtime
+/// Tracked `Runtime`
 pub struct Runtime {
     nodes: Arc<Mutex<Vec<Arc<Node>>>>,
-    selected: Option<Id>,
+    selected: Option<Arc<Node>>,
 }
 
 impl Runtime {
@@ -29,7 +29,7 @@ impl Runtime {
                 let mut nodes = nodes.lock().await;
                 nodes.push(Arc::clone(&node));
             }
-            tokio::join!(h1, h2, h3);
+            let _ = tokio::join!(h1, h2, h3);
         });
 
         Ok(())
@@ -39,9 +39,9 @@ impl Runtime {
         let nodes = self.nodes.lock().await;
         let mut sep = ' ';
         for n in nodes.iter() {
-            if self.selected.is_some() && self.selected.as_ref().unwrap() == &n.node_info.id {
-                sep = 'x';
-            }
+            // if self.selected.is_some() && self.selected.as_ref().unwrap() == &n.node_info.id {
+            //     sep = 'x';
+            // }
             println!("[{}] {}", sep, n.node_info.id.hex());
         }
     }
@@ -87,9 +87,18 @@ impl Runtime {
         }
     }
 
-    fn select(&mut self, id: String) {
-        // from str
+    async fn select(&mut self, id: String) {
+        let id = Id::from(id.as_str());
+        let nodes = self.nodes.lock().await;
+        for n in nodes.iter() {
+            if n.node_info.id == id {
+                self.selected = Some(Arc::clone(n));
+                return;
+            }
+        }
+        println!("Unable to find node id");
     }
+
     /// Print the help dialog
     fn help() {
         println!(r#""#)

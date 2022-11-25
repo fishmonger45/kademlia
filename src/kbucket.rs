@@ -44,9 +44,12 @@ impl KBucket {
             .flatten()
     }
 
-    /// Split the `KBucket` at the given `Id`, returning the `new` `KBucket`
-    pub fn split(&mut self, id: &Id, idx: usize) -> KBucket {
-        let (old, new) = self.0.drain(..).partition(|ni| ni.id.distance(id) == idx);
+    /// Split the `KBucket` at the given `distance`, returning a new `KBucket` which contain nodes further away than the distance
+    pub fn split(&mut self, id: &Id, distance: usize) -> KBucket {
+        let (old, new) = self
+            .0
+            .drain(..)
+            .partition(|ni| ni.id.distance(id) == distance);
         self.0 = old;
         KBucket(new)
     }

@@ -24,8 +24,25 @@ async fn main() {
     let (rh1, ph1, remh1) = n1.start();
     let (rh2, ph2, remh2) = n2.start();
 
-    let res = n1.send(rpc::RequestPayload::Ping, &n2.node_info).await;
+    let res1 = n1.send(rpc::RequestPayload::Ping, &n2.node_info).await;
+    let res2 = n2.send(rpc::RequestPayload::Ping, &n1.node_info).await;
     // let res = n2.send(rpc::RequestPayload::Ping).await;
-    println!("response: {:?}", res);
-    tokio::join!(rh1, ph1, remh1, rh2, ph2, remh2);
+    println!("res1: {:?}", res1);
+    println!("res2: {:?}", res2);
+
+    let res3 = n1
+        .send(
+            rpc::RequestPayload::Store {
+                key: "hello".to_string(),
+                value: "world".to_string(),
+            },
+            &n2.node_info,
+        )
+        .await;
+
+    println!("res3: {:?}", res3);
+
+    let res4 = n2.store.lock().await.get(&"hello".to_string());
+    println!("res4: {:?}", res4);
+    let _ = tokio::join!(rh1, ph1, remh1, rh2, ph2, remh2);
 }

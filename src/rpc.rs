@@ -8,6 +8,7 @@ use tokio::{net::UdpSocket, sync::mpsc::Sender, task::JoinHandle};
 #[derive(Serialize, Deserialize, Debug)]
 pub enum RequestPayload {
     Ping,
+    Store { key: String, value: String },
 }
 
 /// Response message payload

@@ -2,11 +2,12 @@ use std::{collections::HashMap, error::Error, fmt::Display, sync::Arc, time::Dur
 
 use tokio::{
     sync::{
-        mpsc::{self, channel, Receiver, Sender},
+        mpsc::{self},
+        oneshot::{self, Sender},
         Mutex,
     },
     task::JoinHandle,
-    time::{self},
+    time::{self, timeout},
 };
 
 use crate::{
@@ -16,12 +17,15 @@ use crate::{
     storage::Store,
 };
 
+/// Time to wait for a response before timing out
+const RESPONSE_TIMEOUT: Duration = Duration::new(1, 0);
+
 #[derive(Clone)]
 pub struct Node {
     pub node_info: NodeInfo,
     pub router: Arc<Mutex<RoutingTable>>,
     pub store: Arc<Mutex<Store<String, String>>>,
-    pub pending: Arc<Mutex<HashMap<Id, Sender<ResponsePayload>>>>,
+    pub pending: Arc<Mutex<HashMap<Id, oneshot::Sender<ResponsePayload>>>>,
     pub rpc: Arc<Rpc>,
 }
 
@@ -59,7 +63,7 @@ impl Node {
     }
 
     /// Process incoming messages
-    fn process(&self, mut rx: Receiver<Message>) -> JoinHandle<()> {
+    fn process(&self, mut rx: mpsc::Receiver<Message>) -> JoinHandle<()> {
         // This might panic as its a mutable reference while main thread is doing shit
         let mut node = self.clone();
         let process_handle = tokio::spawn(async move {
@@ -97,7 +101,7 @@ impl Node {
         remover_handle
     }
 
-    /// Handle a request, send a response
+    /// Handle a request and send a response
     async fn process_request(&mut self, message: RequestHandle) {
         println!("processing request");
         match message.request {
@@ -115,11 +119,25 @@ impl Node {
 
                 self.rpc.send(&response, &message.source).await;
             }
+            RequestPayload::Store { key, value } => {
+                {
+                    let mut router = self.router.lock().await;
+                    router.upsert(message.source.clone());
+                    let mut store = self.store.lock().await;
+                    store.upsert(key, value);
+                }
+                let response = Message::Response(ResponseHandle {
+                    id: Id::random(),
+                    source: message.source.clone(),
+                    request_id: message.id,
+                    response: ResponsePayload::Pong,
+                });
+                self.rpc.send(&response, &message.source).await;
+            }
         }
     }
 
-    /// Handle a reponse
-    // Lookup in the pending requests, notify requestee
+    /// Handle a request reponse, looking up pending requests, notify requestee
     async fn process_response(&mut self, message: ResponseHandle) {
         let mut pending = self.pending.lock().await;
         {
@@ -130,7 +148,8 @@ impl Node {
         match pending.remove(&message.request_id) {
             Some(tx) => {
                 println!("sending response back to send fn {:?}", message.id);
-                tx.send(message.response).await.unwrap();
+                tx.send(message.response)
+                    .expect("failed to send response via oneshot");
             }
             None => {
                 eprintln!("Received response for request that has not been tracked")
@@ -151,17 +170,19 @@ impl Node {
             request: request,
         });
         // TODO: Change this to a oneshot channel
-        let (tx, mut rx) = channel(50);
+        let (tx, rx) = oneshot::channel();
         {
             let mut pending = self.pending.lock().await;
             pending.insert(request_id, tx);
         }
         self.rpc.send(&message, destination).await;
-
-        let val = rx.recv().await;
-        val
+        let response = timeout(RESPONSE_TIMEOUT, rx)
+            .await
+            .expect("waiting for request response timed out");
+        Some(response.expect("failed to receive response via oneshot"))
     }
 }
+
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.node_info.id.hex())
