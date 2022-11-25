@@ -68,6 +68,18 @@ impl RoutingTable {
         }
     }
 
+    /// Find a [`NodeInfo`] in the `RoutingTable` from an `Id`
+    pub fn find(&self, id: &Id) -> Option<NodeInfo> {
+        for kb in self.kbuckets.iter() {
+            match kb.find(id) {
+                None => continue,
+                x => return x,
+            }
+        }
+
+        None
+    }
+
     /// Get the `n` closest nodes to [`Id`]
     pub fn closest(&self, id: &Id, n: usize) -> Vec<NodeInfo> {
         let mut index = cmp::min(
@@ -134,5 +146,21 @@ mod test {
         };
         rt.upsert(n1);
         println!("{:?}", rt)
+    }
+
+    #[test]
+    fn find() {
+        let mut rt = RoutingTable::new(NodeInfo {
+            id: Id::random(),
+            address: "localhost:8080".to_string(),
+        });
+
+        let id = Id::random();
+        let n1 = NodeInfo {
+            id: id.clone(),
+            address: "localhost:8081".to_string(),
+        };
+        rt.upsert(n1.clone());
+        assert_eq!(rt.find(&id), Some(n1))
     }
 }

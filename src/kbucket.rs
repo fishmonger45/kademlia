@@ -30,6 +30,14 @@ impl KBucket {
         }
     }
 
+    /// Find a [`NodeInfo`] from the `KBucket` via an [`Id`]
+    pub fn find(&self, id: &Id) -> Option<NodeInfo> {
+        self.0
+            .iter()
+            .position(|y| &y.id == id)
+            .and_then(|i| self.0.get(i).map(|x| x.clone()))
+    }
+
     /// Check if the [`NodeInfo`] is contained within the `KBucket`
     pub fn contains(&self, x: &NodeInfo) -> bool {
         self.0.iter().any(|y| y == x)
@@ -61,7 +69,7 @@ impl KBucket {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
 
     #[test]
@@ -85,5 +93,17 @@ mod tests {
         assert_eq!(kb.0, vec![y.clone(), x.clone()]);
         kb.remove(&x);
         assert_eq!(kb.0, vec![y]);
+    }
+
+    #[test]
+    fn find() {
+        let mut kb: KBucket = KBucket::new();
+        let id = Id::random();
+        let x = NodeInfo {
+            id: id.clone(),
+            address: "localhost:8080".to_string(),
+        };
+        kb.upsert(x.clone());
+        assert_eq!(kb.find(&id), Some(x.clone()));
     }
 }

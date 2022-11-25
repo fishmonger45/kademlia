@@ -87,8 +87,7 @@ impl Runtime {
         }
     }
 
-    async fn select(&mut self, id: String) {
-        let id = Id::from(id.as_str());
+    async fn select(&mut self, id: Id) {
         let nodes = self.nodes.lock().await;
         for n in nodes.iter() {
             if n.node_info.id == id {
@@ -97,6 +96,23 @@ impl Runtime {
             }
         }
         println!("Unable to find node id");
+    }
+
+    async fn ping(&mut self, id: Id) {
+    
+        // let node = match self.selected {
+        //     Some(node) => node,
+        //     None => {
+        //         println!("No node selected");
+        //         return;
+        //     }
+        // };
+
+        // let router = node.router.lock().await;
+        // router.
+
+        // let response = node.send(rpc::RequestPayload::Ping, &n2.node_info).await;
+
     }
 
     /// Print the help dialog
