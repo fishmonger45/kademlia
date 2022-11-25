@@ -1,8 +1,8 @@
-use std::{error::Error, io::Write, sync::Arc};
+use std::{borrow::BorrowMut, error::Error, io::Write, sync::Arc};
 
 use tokio::sync::Mutex;
 
-use crate::{id::Id, node::Node};
+use crate::{id::Id, kbucket::KBUCKET_MAX_LENGTH, node::Node, rpc::RequestPayload};
 
 /// Tracked `Runtime`
 pub struct Runtime {
@@ -81,7 +81,7 @@ impl Runtime {
                 "history" => {}
                 "help" => {}
                 iv => {
-                    println!("< invalid command \"{iv}\"");
+                    println!("Invalid command");
                 }
             }
         }
@@ -95,24 +95,28 @@ impl Runtime {
                 return;
             }
         }
-        println!("Unable to find node id");
+        println!("unable to find node id");
     }
 
     async fn ping(&mut self, id: Id) {
-    
-        // let node = match self.selected {
-        //     Some(node) => node,
-        //     None => {
-        //         println!("No node selected");
-        //         return;
-        //     }
-        // };
+        let mut node = match self.selected {
+            Some(ref node) => Arc::clone(&node),
+            None => {
+                println!("no node selected");
+                return;
+            }
+        };
 
-        // let router = node.router.lock().await;
-        // router.
+        let mut closest = Vec::new();
+        {
+            let router = node.router.lock().await;
+            closest = router.closest(&node.node_info.id, KBUCKET_MAX_LENGTH);
+        }
 
-        // let response = node.send(rpc::RequestPayload::Ping, &n2.node_info).await;
-
+        // TODO: Make put each ping in a future
+        // for n in closest {
+        //     let response = node.borrow_mut().send(RequestPayload::Ping, &n).await;
+        // }
     }
 
     /// Print the help dialog

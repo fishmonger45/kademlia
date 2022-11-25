@@ -44,5 +44,17 @@ async fn main() {
 
     let res4 = n2.store.lock().await.get(&"hello".to_string());
     println!("res4: {:?}", res4);
+
+    let res5 = n1
+        .send(
+            rpc::RequestPayload::FindNode {
+                id: n1.node_info.id.clone(),
+            },
+            &n2.node_info,
+        )
+        .await;
+
+    println!("res5: {:?}", res5);
+
     let _ = tokio::join!(rh1, ph1, remh1, rh2, ph2, remh2);
 }

@@ -12,6 +12,7 @@ use tokio::{
 
 use crate::{
     id::Id,
+    kbucket::KBUCKET_MAX_LENGTH,
     routing::{NodeInfo, RoutingTable},
     rpc::{Message, RequestHandle, RequestPayload, ResponseHandle, ResponsePayload, Rpc},
     storage::Store,
@@ -132,6 +133,23 @@ impl Node {
                     request_id: message.id,
                     response: ResponsePayload::Pong,
                 });
+                self.rpc.send(&response, &message.source).await;
+            }
+            RequestPayload::FindNode { id } => {
+                let closest: Vec<NodeInfo>;
+                {
+                    let mut router = self.router.lock().await;
+                    router.upsert(message.source.clone());
+                    closest = router.closest(&id, KBUCKET_MAX_LENGTH);
+                }
+
+                let response = Message::Response(ResponseHandle {
+                    id: Id::random(),
+                    source: message.source.clone(),
+                    request_id: message.id,
+                    response: ResponsePayload::FindNode { closest },
+                });
+
                 self.rpc.send(&response, &message.source).await;
             }
         }

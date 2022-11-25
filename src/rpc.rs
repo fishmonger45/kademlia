@@ -4,17 +4,22 @@ use crate::{id::Id, routing::NodeInfo};
 use serde::{Deserialize, Serialize};
 use tokio::{net::UdpSocket, sync::mpsc::Sender, task::JoinHandle};
 
+/// Maximum message size sent over the wire
+pub const MESSAGE_SIZE: usize = 2000;
+
 /// Request message payload
 #[derive(Serialize, Deserialize, Debug)]
 pub enum RequestPayload {
     Ping,
     Store { key: String, value: String },
+    FindNode { id: Id },
 }
 
 /// Response message payload
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ResponsePayload {
     Pong,
+    FindNode { closest: Vec<NodeInfo> },
 }
 
 /// Wraps request with sender details
@@ -55,7 +60,7 @@ impl Rpc {
     pub fn receive(&self, tx: Sender<Message>) -> JoinHandle<()> {
         let socket = Arc::clone(&self.socket);
         let receive_handle = tokio::spawn(async move {
-            let mut buffer = [0u8; 508];
+            let mut buffer = [0u8; MESSAGE_SIZE];
             loop {
                 let (x, _) = socket
                     .recv_from(&mut buffer)
