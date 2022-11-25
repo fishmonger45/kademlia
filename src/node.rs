@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, error::Error, fmt::Display, sync::Arc, time::Duration};
 
 use tokio::{
     sync::{
@@ -21,34 +21,32 @@ pub struct Node {
     pub node_info: NodeInfo,
     pub router: Arc<Mutex<RoutingTable>>,
     pub store: Arc<Mutex<Store<String, String>>>,
-    /// Requests pending responses
-    // XXX: Does this just need the payload or is the handle itself required?
     pub pending: Arc<Mutex<HashMap<Id, Sender<ResponsePayload>>>>,
     pub rpc: Arc<Rpc>,
 }
 
 impl Node {
     /// Create a new node with a random [`Id`] and an empty [`RoutingTable`], start the [`Rpc`]
-    pub async fn new(address: String) -> Self {
+    pub async fn new(address: String) -> Result<Self, Box<dyn Error>> {
         let id = Id::random();
 
         let node_info = NodeInfo {
             id: id,
             address: address.clone(),
         };
-        let socket = tokio::net::UdpSocket::bind(&address).await.unwrap();
+        let socket = tokio::net::UdpSocket::bind(&address).await?;
         let store = Arc::new(Mutex::new(Store::new()));
         let router = Arc::new(Mutex::new(RoutingTable::new(node_info.clone())));
         let rpc = Arc::new(Rpc::new(Arc::new(socket)));
         let pending = Arc::new(Mutex::new(HashMap::new()));
 
-        Self {
+        Ok(Self {
             node_info,
             rpc,
             router,
             store,
             pending,
-        }
+        })
     }
 
     /// Start receive and process services
@@ -141,7 +139,11 @@ impl Node {
     }
 
     /// Send a request and wait and return a response.
-    pub async fn send(&mut self, request: RequestPayload) -> Option<ResponsePayload> {
+    pub async fn send(
+        &mut self,
+        request: RequestPayload,
+        destination: &NodeInfo,
+    ) -> Option<ResponsePayload> {
         let request_id = Id::random();
         let message = Message::Request(RequestHandle {
             id: request_id.clone(),
@@ -154,9 +156,14 @@ impl Node {
             let mut pending = self.pending.lock().await;
             pending.insert(request_id, tx);
         }
-        self.rpc.send(&message, &self.node_info.clone()).await;
+        self.rpc.send(&message, destination).await;
 
         let val = rx.recv().await;
         val
+    }
+}
+impl Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.node_info.id.hex())
     }
 }

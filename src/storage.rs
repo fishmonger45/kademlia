@@ -18,7 +18,7 @@ where
     K: Hash + PartialEq + Eq + Ord + Clone + Send + Sync,
     V: Clone + Send + Sync,
 {
-    /// Create an empty store
+    /// Create an empty `Store`
     pub fn new() -> Self {
         Self {
             store: HashMap::new(),
@@ -26,17 +26,20 @@ where
         }
     }
 
-    /// Upsert a value to the store
+    /// Upsert a value to the `Store`
     pub fn upsert(&mut self, k: K, v: V) {
         self.store.insert(k.clone(), v);
         self.times.insert(k, Instant::now());
     }
 
-    pub fn get(&self, k: &K) -> Option<V> {
-        self.store.get(&k).map(|v| v.clone())
+    /// Fetch value and the insertion [`Instant`] from the `Store`
+    pub fn get(&self, k: &K) -> Option<(V, Instant)> {
+        let v = self.store.get(&k).map(|v| v.clone());
+        let t = self.times.get(k).map(|t| t.clone());
+        Option::zip(v, t)
     }
 
-    /// Remove all stale entries from the store
+    /// Remove all stale entries from the `Store`
     pub fn remove_stale(&mut self) {
         let now = Instant::now();
         let mut keys = Vec::new();
@@ -66,7 +69,7 @@ mod test {
     fn upsert() {
         let mut store = Store::<usize, usize>::new();
         store.upsert(0, 0);
-        assert_eq!(store.get(&0), Some(0));
+        assert_eq!(store.get(&0).unwrap().0, 0);
         // store.upsert(0, 0);
     }
 }

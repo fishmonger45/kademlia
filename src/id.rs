@@ -2,6 +2,7 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Error, Formatter, Write};
 
+/// Number of bytes in an `Id`
 pub const ID_SIZE: usize = 20;
 
 /// Node identification
@@ -9,17 +10,17 @@ pub const ID_SIZE: usize = 20;
 pub struct Id([u8; ID_SIZE]);
 
 impl Id {
-    /// Create a new [`Id`]
+    /// Create a new `Id`
     pub fn new(xs: [u8; 20]) -> Self {
         Id(xs)
     }
 
-    /// Create a new [`Id`] from [`rand::thread_rng`]
+    /// Create a new `Id` from [`rand::thread_rng`]
     pub fn random() -> Self {
         Id(thread_rng().gen::<[u8; ID_SIZE]>())
     }
 
-    /// Find the XOR distance between two [`Id`]s via the number of prefix zero bits
+    /// Find the XOR distance between two `Ids` via the number of prefix zero bits
     pub fn distance(&self, x: &Self) -> usize {
         Id(self
             .0
@@ -32,7 +33,7 @@ impl Id {
         .leading_zeros()
     }
 
-    /// Number of prefix zero bits between two [`Id`]s
+    /// Number of prefix zero bits between two `Ids`
     pub fn leading_zeros(&self) -> usize {
         for i in 0..20 {
             for j in (0..8).rev() {
@@ -45,6 +46,7 @@ impl Id {
         ID_SIZE * 8
     }
 
+    /// Hexidecimal representation of an `Ids`
     pub fn hex(&self) -> String {
         let mut s = String::from("0x");
         for b in self.0 {
@@ -62,6 +64,18 @@ impl Debug for Id {
         }
 
         Ok(())
+    }
+}
+
+impl From<&str> for Id {
+    fn from(s: &str) -> Self {
+        assert_eq!(s.len(), 42);
+        let xs: Vec<u8> = (2..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect();
+
+        Id(xs[..].try_into().unwrap())
     }
 }
 
@@ -98,11 +112,13 @@ mod test {
 
     #[test]
     fn hex() {
-        let x = Id::new([0u8; 20]);
+        let x = Id::new([1u8; 20]);
         assert_eq!(
             x.hex(),
-            format!("0x{}", (0..40).map(|_| "0").collect::<String>())
+            format!("0x{}", (0..20).map(|_| "01").collect::<String>())
         );
-        assert_eq!(x.hex(), format!("{:?}", x))
+        assert_eq!(x.hex(), format!("{:?}", x));
+        let y = Id::from(x.hex().as_str());
+        assert_eq!(y, x);
     }
 }

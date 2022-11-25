@@ -4,13 +4,13 @@ use crate::{id::Id, routing::NodeInfo};
 use serde::{Deserialize, Serialize};
 use tokio::{net::UdpSocket, sync::mpsc::Sender, task::JoinHandle};
 
-/// Request message types
+/// Request message payload
 #[derive(Serialize, Deserialize, Debug)]
 pub enum RequestPayload {
     Ping,
 }
 
-/// Response message types
+/// Response message payload
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ResponsePayload {
     Pong,
@@ -46,11 +46,11 @@ pub struct Rpc {
 }
 
 impl Rpc {
-    // Create a new [`Rpc`] handler
+    // Create a new `Rpc` handler
     pub fn new(socket: Arc<UdpSocket>) -> Self {
         Self { socket }
     }
-    /// Listen for messages and send them to a handler
+    /// Listen for messages and send them to process
     pub fn receive(&self, tx: Sender<Message>) -> JoinHandle<()> {
         let socket = Arc::clone(&self.socket);
         let receive_handle = tokio::spawn(async move {
@@ -83,5 +83,3 @@ impl Rpc {
             .expect("failed to send message");
     }
 }
-
-mod test {}

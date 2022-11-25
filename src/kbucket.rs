@@ -1,7 +1,8 @@
-use std::{collections::VecDeque, mem};
+use std::collections::VecDeque;
 
 use crate::{id::Id, routing::NodeInfo};
 
+/// Maximum length of a `KBucket` before it is required to be split
 pub const KBUCKET_MAX_LENGTH: usize = 20;
 
 #[derive(Debug, Clone)]
@@ -12,28 +13,29 @@ impl KBucket {
         KBucket(VecDeque::new())
     }
 
-    /// Upsert a value in a [`KBucket`]. Moving existing values to the tail
+    /// Upsert a [`NodeInfo`] into the `KBucket`. Moving existing values to the tail
     pub fn upsert(&mut self, x: NodeInfo) {
         if self.0.contains(&x) {
             self.0.remove(
                 self.0
                     .iter()
                     .position(|y| *y == x)
-                    .expect("needle not found"),
+                    .expect("node info needle not found"),
             );
         }
+
         self.0.push_back(x);
         if self.0.len() > KBUCKET_MAX_LENGTH {
             self.0.pop_front();
         }
     }
 
-    /// Check if the node is contained within the [`KBucket`]
+    /// Check if the [`NodeInfo`] is contained within the `KBucket`
     pub fn contains(&self, x: &NodeInfo) -> bool {
         self.0.iter().any(|y| y == x)
     }
 
-    /// Remove a given element from the [`KBucket`]
+    /// Remove a [`NodeInfo`] from the `KBucket`
     pub fn remove(&mut self, x: &NodeInfo) -> Option<NodeInfo> {
         self.0
             .iter()
@@ -42,13 +44,14 @@ impl KBucket {
             .flatten()
     }
 
+    /// Split the `KBucket` at the given `Id`, returning the `new` `KBucket`
     pub fn split(&mut self, id: &Id, idx: usize) -> KBucket {
         let (old, new) = self.0.drain(..).partition(|ni| ni.id.distance(id) == idx);
         self.0 = old;
         KBucket(new)
     }
 
-    /// The number of nodes within the [`KBucket`]
+    /// The number of nodes within the `KBucket`
     pub fn size(&self) -> usize {
         self.0.len()
     }

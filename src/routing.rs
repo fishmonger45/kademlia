@@ -24,7 +24,7 @@ pub struct RoutingTable {
 }
 
 impl RoutingTable {
-    /// Create a new RoutingTable with a single KBucket
+    /// Create a new `RoutingTable` with a single empty [`KBucket`]
     pub fn new(node_info: NodeInfo) -> Self {
         Self {
             kbuckets: vec![KBucket::new()],
@@ -32,7 +32,7 @@ impl RoutingTable {
         }
     }
 
-    /// Upsert a node into the [`RoutingTable`], splitting the [`Kbucket`]s as nessesary
+    /// Upsert a node into the `RoutingTable`, splitting the [`KBucket`] as nessesary
     pub fn upsert(&mut self, node_info: NodeInfo) -> bool {
         let mut index = std::cmp::min(
             self.node_info.id.distance(&node_info.id),
@@ -68,7 +68,7 @@ impl RoutingTable {
         }
     }
 
-    /// Get the `n` closest nodes to `id`
+    /// Get the `n` closest nodes to [`Id`]
     pub fn closest(&self, id: &Id, n: usize) -> Vec<NodeInfo> {
         let mut index = std::cmp::min(
             self.node_info.id.distance(&self.node_info.id),
@@ -92,19 +92,19 @@ impl RoutingTable {
         closest
     }
 
+    /// Number of [`KBuckets`] in the `RoutingTable`
     pub fn size(&self) -> usize {
         self.kbuckets.len()
     }
 
-    pub fn remove(&mut self, node_info: &NodeInfo) {
+    /// Remove a node from the `RoutingTable` and return it
+    pub fn remove(&mut self, node_info: &NodeInfo) -> Option<NodeInfo> {
         let idx = std::cmp::min(
             self.node_info.id.distance(&node_info.id),
             self.kbuckets.len() - 1,
         );
 
-        self.kbuckets[idx]
-            .remove(node_info)
-            .expect("tried to remove a node from a kbucket that doesn't exist in that kbucket");
+        self.kbuckets[idx].remove(node_info)
     }
 }
 
